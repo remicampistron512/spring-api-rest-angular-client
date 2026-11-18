@@ -1,5 +1,6 @@
 import {Component, inject, signal, OnInit} from '@angular/core';
 import {HttpClient} from "@angular/common/http";
+import {FormsModule} from "@angular/forms";
 
 
 interface Training {
@@ -11,10 +12,16 @@ interface Training {
 }
 
 @Component({
+  imports: [FormsModule],
   selector: 'app-root',
   template: `
     <h1>Trainings</h1>
-
+    <form name="input">
+      <input ngModel type="text" name="name" id="name" />
+      <textarea type="text" name="description" id="description"></textarea>       
+      <input type="number" name="price" id="price" step="0.01" />
+      <input type="number" name="quantity" id="quantity" step="1" />
+    </form>
     @if (errorMessage()) {
       <p role="alert">{{ errorMessage() }}</p>
     } @else if (trainings(); as items) {
@@ -39,6 +46,12 @@ export class App implements OnInit {
   private readonly http = inject(HttpClient);
   protected readonly trainings = signal<Training[] | null>(null);
   protected readonly errorMessage = signal('');
+  protected readonly draftTraining = {
+    name : "",
+    description : "",
+    price : 0,
+    quantity : 0,
+  }
 
   ngOnInit(): void {
     this.http.get<Training[]>('/api/trainings').subscribe({
