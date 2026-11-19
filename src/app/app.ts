@@ -70,8 +70,24 @@ interface Training {
                     <article class="card h-100 shadow-sm">
                       <div class="card-body d-flex flex-column p-4">
                         <div class="d-flex justify-content-between align-items-start gap-3">
-                          <h3 class="h5 card-title text-break">{{ training.name }}</h3>
-                          <button (click)="deleteTraining(training.id)" class="border-0" type="button" aria-label="delete training"><span class="bi bi-trash"></span></button>
+                          @if (editingId === training.id) {
+                            <form class="w-100 mb-3" (ngSubmit)="editTraining(training.id)">
+                               <input class="form-control mb-2" [(ngModel)]="editDraft.name"
+                                     type="text" name="name" id="edit-training-name"/>
+                              <div class="d-flex gap-2">
+                                <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        (click)="clearEditingId()" type="button">Cancel</button>
+                              </div>
+                            </form>
+                          } @else {
+                            <h3 class="h5 card-title text-break">
+                              <button class="btn btn-link p-0" type="button" (click)="startEditing(training)">
+                                {{ training.name }}
+                              </button>
+                            </h3>
+                            <button (click)="deleteTraining(training.id)" class="border-0" type="button" aria-label="delete training"><span class="bi bi-trash"></span></button>
+                          }
                         </div>
                         <p class="card-text text-body-secondary text-break mb-4">{{ training.description }}</p>
                         <dl class="d-flex flex-wrap gap-4 border-top pt-3 mt-auto mb-0">
@@ -119,7 +135,13 @@ export class App implements OnInit {
     price: 0,
     quantity: 0,
   }
-  protected editingId = null
+  protected editingId:number|null = null
+  protected editDraft = {
+    name : "",
+    description : "",
+    price : 0,
+    quantity : 0,
+  }
   ngOnInit(): void {
     this.http.get<Training[]>('/api/trainings').subscribe({
       next: (trainings) => this.trainings.set(trainings),
@@ -145,6 +167,37 @@ export class App implements OnInit {
         this.trainings.update((items) =>
             items?.filter((training) => training.id !== id) ?? null
         );
+      },
+    });
+  }
+  startEditing(training:Training): void {
+    this.editingId = training.id;
+    this.editDraft = {
+      name : training.name,
+      description : training.description,
+      price : training.price,
+      quantity : training.quantity,
+    }
+  }
+
+  clearEditingId(): void {
+    this.editingId = null;
+  }
+
+  editTraining(id: number): void {
+    const changes = { ...this.editDraft };
+
+    this.http.put<void>(`/api/trainings/${id}`, changes).subscribe({
+      next: () => {
+        this.trainings.update((items) =>
+            items?.map((training) =>
+                training.id === id ? { ...training, ...changes } : training
+            ) ?? null
+        );
+
+        if (this.editingId === id) {
+          this.editingId = null;
+        }
       },
     });
   }
