@@ -69,7 +69,10 @@ interface Training {
                   <li class="col">
                     <article class="card h-100 shadow-sm">
                       <div class="card-body d-flex flex-column p-4">
-                        <h3 class="h5 card-title text-break">{{ training.name }}</h3>
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                          <h3 class="h5 card-title text-break">{{ training.name }}</h3>
+                          <button (click)="deleteTraining(training.id)" class="border-0" type="button" aria-label="delete training"><span class="bi bi-trash"></span></button>
+                        </div>
                         <p class="card-text text-body-secondary text-break mb-4">{{ training.description }}</p>
                         <dl class="d-flex flex-wrap gap-4 border-top pt-3 mt-auto mb-0">
                           <div>
@@ -111,18 +114,19 @@ export class App implements OnInit {
   protected readonly errorMessage = signal('');
   protected readonly saveError = signal('');
   protected readonly draftTraining = {
-    name : "",
-    description : "",
-    price : 0,
-    quantity : 0,
+    name: "",
+    description: "",
+    price: 0,
+    quantity: 0,
   }
-
+  protected editingId = null
   ngOnInit(): void {
     this.http.get<Training[]>('/api/trainings').subscribe({
       next: (trainings) => this.trainings.set(trainings),
       error: () => this.errorMessage.set('Could not load trainings.'),
     });
   }
+
   addTraining(): void {
     this.saveError.set('');
     this.http.post<Training>('/api/trainings', this.draftTraining).subscribe({
@@ -131,6 +135,16 @@ export class App implements OnInit {
       },
       error: () => {
         this.saveError.set('Could not add training.');
+      },
+    });
+  }
+
+  deleteTraining(id: number): void {
+    this.http.delete<void>(`/api/trainings/${id}`).subscribe({
+      next: () => {
+        this.trainings.update((items) =>
+            items?.filter((training) => training.id !== id) ?? null
+        );
       },
     });
   }
