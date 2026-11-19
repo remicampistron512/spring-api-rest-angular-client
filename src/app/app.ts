@@ -16,14 +16,17 @@ interface Training {
   selector: 'app-root',
   template: `
     <h1>Trainings</h1>
-    <form name="input">
-      <input ngModel type="text" name="name" id="name" />
-      <textarea type="text" name="description" id="description"></textarea>       
-      <input type="number" name="price" id="price" step="0.01" />
-      <input type="number" name="quantity" id="quantity" step="1" />
+    <form (ngSubmit)="addTraining()" name="input">
+      <input [(ngModel)]="draftTraining.name" type="text" name="name" id="name"/>
+      <textarea [(ngModel)]="draftTraining.description" type="text" name="description" id="description"></textarea>
+      <input [(ngModel)]="draftTraining.price" type="number" name="price" id="price" step="0.01"/>
+      <input [(ngModel)]="draftTraining.quantity" type="number" name="quantity" id="quantity" step="1"/>
+      <button type="submit">ajouter uen formation</button>
     </form>
     @if (errorMessage()) {
       <p role="alert">{{ errorMessage() }}</p>
+    } @else if(saveError()){
+      <p role="alert">{{ saveError() }}</p>
     } @else if (trainings(); as items) {
       <ul>
         @for (training of items; track training.id) {
@@ -46,6 +49,7 @@ export class App implements OnInit {
   private readonly http = inject(HttpClient);
   protected readonly trainings = signal<Training[] | null>(null);
   protected readonly errorMessage = signal('');
+  protected readonly saveError = signal('');
   protected readonly draftTraining = {
     name : "",
     description : "",
@@ -57,6 +61,16 @@ export class App implements OnInit {
     this.http.get<Training[]>('/api/trainings').subscribe({
       next: (trainings) => this.trainings.set(trainings),
       error: () => this.errorMessage.set('Could not load trainings.'),
+    });
+  }
+  addTraining(): void {
+    this.http.post<Training>('/api/trainings', this.draftTraining).subscribe({
+      next: (createdTraining) => {
+        this.trainings.update((items) => [...(items ?? []), createdTraining]);
+      },
+      error: () => {
+        this.saveError.set('Could not add training.');
+      },
     });
   }
 }
