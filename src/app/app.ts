@@ -1,4 +1,5 @@
-import {Component, inject, signal, OnInit} from '@angular/core';
+import {afterNextRender, Component, ElementRef, inject, Injector, OnInit, signal, viewChild} from '@angular/core';
+import {NgTemplateOutlet} from '@angular/common';
 import {HttpClient} from "@angular/common/http";
 import {FormsModule} from "@angular/forms";
 
@@ -11,8 +12,10 @@ interface Training {
   quantity: number;
 }
 
+type TrainingField = keyof Omit<Training, 'id'>;
+
 @Component({
-  imports: [FormsModule],
+  imports: [FormsModule, NgTemplateOutlet],
   selector: 'app-root',
   template: `
     <main class="min-vh-100 bg-body-tertiary">
@@ -66,38 +69,95 @@ interface Training {
             } @else if (trainings(); as items) {
               <ul class="row row-cols-1 row-cols-md-2 g-3 list-unstyled mb-0">
                 @for (training of items; track training.id) {
+                  @let activeField = editDraft?.id === training.id ? editDraft?.field : null;
+                  <ng-template #fieldEditor>
+                    @if (editDraft; as draft) {
+                      <form class="w-100" (ngSubmit)="editTraining(training)">
+                        <fieldset [disabled]="editSaving()">
+                          <label class="visually-hidden" for="edit-training-value">{{ editLabels[draft.field] }}</label>
+                          @switch (draft.field) {
+                            @case ('name') {
+                              <input #editInput class="form-control" [(ngModel)]="draft.value"
+                                     type="text" name="value" id="edit-training-value"/>
+                            }
+                            @case ('description') {
+                              <textarea #editInput class="form-control" [(ngModel)]="draft.value"
+                                        name="value" id="edit-training-value" rows="3"></textarea>
+                            }
+                            @default {
+                              <input #editInput class="form-control" [(ngModel)]="draft.value"
+                                     type="number" name="value" id="edit-training-value"
+                                     [step]="draft.field === 'price' ? '0.01' : '1'" required/>
+                            }
+                          }
+                          @if (editError()) {
+                            <p class="alert alert-danger mt-2 mb-0" role="alert">{{ editError() }}</p>
+                          }
+                          <div class="d-flex flex-wrap gap-2 mt-2">
+                            <button class="btn btn-primary btn-sm" type="submit" [disabled]="draft.value === null">
+                              {{ editSaving() ? 'Saving…' : 'Save' }}
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button"
+                                    (click)="editDraft = null">Cancel</button>
+                          </div>
+                        </fieldset>
+                      </form>
+                    }
+                  </ng-template>
                   <li class="col">
                     <article class="card h-100 shadow-sm">
                       <div class="card-body d-flex flex-column p-4">
                         <div class="d-flex justify-content-between align-items-start gap-3">
-                          @if (editingId === training.id) {
-                            <form class="w-100 mb-3" (ngSubmit)="editTraining(training.id)">
-                               <input class="form-control mb-2" [(ngModel)]="editDraft.name"
-                                     type="text" name="name" id="edit-training-name"/>
-                              <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm" type="submit">Save</button>
-                                <button class="btn btn-outline-secondary btn-sm"
-                                        (click)="clearEditingId()" type="button">Cancel</button>
-                              </div>
-                            </form>
+                          @if (activeField === 'name') {
+                            <ng-container [ngTemplateOutlet]="fieldEditor"></ng-container>
                           } @else {
                             <h3 class="h5 card-title text-break">
-                              <button class="btn btn-link p-0" type="button" (click)="startEditing(training)">
-                                {{ training.name }}
+                              <button class="btn btn-link p-0 text-start" type="button" [disabled]="editSaving()"
+                                      (click)="startEditing(training, 'name')">
+                                {{ training.name || 'Edit name' }}
                               </button>
                             </h3>
+                          }
+                          @if (!activeField) {
                             <button (click)="deleteTraining(training.id)" class="border-0" type="button" aria-label="delete training"><span class="bi bi-trash"></span></button>
                           }
                         </div>
-                        <p class="card-text text-body-secondary text-break mb-4">{{ training.description }}</p>
+                        <div class="card-text text-break mb-4">
+                          @if (activeField === 'description') {
+                            <ng-container [ngTemplateOutlet]="fieldEditor"></ng-container>
+                          } @else {
+                            <button class="btn btn-link p-0 text-start" type="button" [disabled]="editSaving()"
+                                    (click)="startEditing(training, 'description')">
+                              {{ training.description || 'Edit description' }}
+                            </button>
+                          }
+                        </div>
                         <dl class="d-flex flex-wrap gap-4 border-top pt-3 mt-auto mb-0">
                           <div>
                             <dt class="small text-body-secondary fw-normal">Price</dt>
-                            <dd class="fw-semibold mb-0">{{ training.price }}</dd>
+                            <dd class="fw-semibold mb-0">
+                              @if (activeField === 'price') {
+                                <ng-container [ngTemplateOutlet]="fieldEditor"></ng-container>
+                              } @else {
+                                <button class="btn btn-link p-0" type="button" [disabled]="editSaving()"
+                                        (click)="startEditing(training, 'price')">
+                                  {{ training.price ?? 'Edit price' }}
+                                </button>
+                              }
+                            </dd>
                           </div>
                           <div>
                             <dt class="small text-body-secondary fw-normal">Quantity</dt>
-                            <dd class="fw-semibold mb-0">{{ training.quantity }}</dd>
+                            <dd class="fw-semibold mb-0">
+                              @if (activeField === 'quantity') {
+                                <ng-container [ngTemplateOutlet]="fieldEditor"></ng-container>
+                              } @else {
+                                <button class="btn btn-link p-0" type="button" [disabled]="editSaving()"
+                                        (click)="startEditing(training, 'quantity')">
+                                  {{ training.quantity ?? 'Edit quantity' }}
+                                </button>
+                              }
+                            </dd>
                           </div>
                         </dl>
                       </div>
@@ -126,6 +186,8 @@ interface Training {
 
 export class App implements OnInit {
   private readonly http = inject(HttpClient);
+  private readonly injector = inject(Injector);
+  private readonly editInput = viewChild<ElementRef<HTMLInputElement | HTMLTextAreaElement>>('editInput');
   protected readonly trainings = signal<Training[] | null>(null);
   protected readonly errorMessage = signal('');
   protected readonly saveError = signal('');
@@ -135,13 +197,16 @@ export class App implements OnInit {
     price: 0,
     quantity: 0,
   }
-  protected editingId:number|null = null
-  protected editDraft = {
-    name : "",
-    description : "",
-    price : 0,
-    quantity : 0,
-  }
+  protected readonly editLabels: Record<TrainingField, string> = {
+    name: 'Name',
+    description: 'Description',
+    price: 'Price',
+    quantity: 'Quantity',
+  };
+  protected readonly editSaving = signal(false);
+  protected readonly editError = signal('');
+  protected editDraft: { id: number; field: TrainingField; value: string | number | null } | null = null;
+
   ngOnInit(): void {
     this.http.get<Training[]>('/api/trainings').subscribe({
       next: (trainings) => this.trainings.set(trainings),
@@ -170,34 +235,35 @@ export class App implements OnInit {
       },
     });
   }
-  startEditing(training:Training): void {
-    this.editingId = training.id;
-    this.editDraft = {
-      name : training.name,
-      description : training.description,
-      price : training.price,
-      quantity : training.quantity,
+  startEditing(training: Training, field: TrainingField): void {
+    this.editError.set('');
+    this.editDraft = { id: training.id, field, value: training[field] };
+    afterNextRender({
+      write: () => this.editInput()?.nativeElement.focus(),
+    }, { injector: this.injector });
+  }
+
+  editTraining(training: Training): void {
+    const draft = this.editDraft;
+    if (!draft || draft.id !== training.id || draft.value === null || this.editSaving()) {
+      return;
     }
-  }
 
-  clearEditingId(): void {
-    this.editingId = null;
-  }
-
-  editTraining(id: number): void {
-    const changes = { ...this.editDraft };
-
-    this.http.put<void>(`/api/trainings/${id}`, changes).subscribe({
+    const { id, ...values } = training;
+    const changes = { [draft.field]: draft.value };
+    this.editError.set('');
+    this.editSaving.set(true);
+    this.http.put<void>(`/api/trainings/${id}`, { ...values, ...changes }).subscribe({
       next: () => {
         this.trainings.update((items) =>
-            items?.map((training) =>
-                training.id === id ? { ...training, ...changes } : training
-            ) ?? null
+          items?.map((item) => item.id === id ? { ...item, ...changes } : item) ?? null
         );
-
-        if (this.editingId === id) {
-          this.editingId = null;
-        }
+        this.editDraft = null;
+        this.editSaving.set(false);
+      },
+      error: () => {
+        this.editError.set('Could not update training.');
+        this.editSaving.set(false);
       },
     });
   }
